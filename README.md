@@ -1,6 +1,7 @@
 # Desafio de mensagens em rede — UDP Broadcast
 
-Empresa: **(nome do grupo)** — serviço: entrega de comida.
+Emissor e receptor em Python para o desafio de criptografia e comunicação UDP broadcast.
+Nossa empresa: **Icev-Food** — serviço: **entrega de comida**.
 
 ## Arquivos
 
