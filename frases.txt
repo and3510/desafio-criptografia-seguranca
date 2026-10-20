@@ -1,15 +1,8 @@
-# Uma frase por linha. Linhas começadas com # são ignoradas.
-# Empresa de ENTREGA DE COMIDA. Regra do guia: 10 a 20 frases, sendo 3 ou 4
-# com pistas sobre o serviço (nem óbvias demais, nem impossíveis).
-# Dica: não escreva o nome da empresa nas frases.
-
-# --- Pistas sobre o serviço (4) ---
+# Uma frase por linha (linhas com # são ignoradas). 4 pistas + 10 outras.
 A mochila quadrada nas costas é o nosso cartão de visita.
 Você escolhe pelo celular e a gente leva até o seu portão.
 Trabalhamos com vários restaurantes parceiros, e o que importa é chegar quentinho.
 Nossa meta é que a fome de ninguém espere mais de quarenta minutos.
-
-# --- Outros assuntos (10) ---
 Alguém sabe se o laboratório vai estar aberto amanhã?
 Lembrete: entregar o relatório de redes até sexta.
 Bom dia a todos, que a internet do laboratório aguente firme!
