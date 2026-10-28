@@ -92,6 +92,15 @@
   .chip.isca { background: var(--isca-bg); color: var(--isca); }
   .chip.copia { background: var(--copia-bg); color: var(--copia); }
   .chip.neutra { background: var(--neutra-bg); color: var(--neutra); }
+  .chip.fala { background: var(--nos-bg); color: var(--nos); }
+  .maquina { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: 12px; background: var(--bg);
+             border-radius: 8px; padding: 8px 10px; }
+  .maquina dt { color: var(--muted); }
+  .maquina dd { margin: 0; }
+  .maquina .ruim { color: var(--copia); font-weight: 600; }
+  .maquina .ok { color: var(--pista); }
+  .citados { font-size: 12px; color: var(--muted); }
+  .citados b { color: var(--ink); font-weight: 600; }
   .detalhe { display: block; font-size: 12px; color: var(--muted); }
   li.copia .texto { text-decoration: line-through; text-decoration-color: var(--copia); }
 
@@ -116,6 +125,7 @@
   <div class="filtros" role="group" aria-label="Filtrar frases">
     <button data-f="todas" aria-pressed="true">Todas</button>
     <button data-f="pista" aria-pressed="false">Pistas</button>
+    <button data-f="fala" aria-pressed="false">Fala de tema</button>
     <button data-f="isca" aria-pressed="false">Iscas</button>
     <button data-f="copia" aria-pressed="false">Cópias</button>
     <button data-f="neutra" aria-pressed="false">Neutras</button>
@@ -140,20 +150,22 @@
     <h2>Ao vivo</h2>
     <div id="feed" class="feed"></div>
     <div class="legenda">
-      <div><span class="chip pista">pista</span>bate com o tema do grupo</div>
-      <div><span class="chip isca">isca</span>fala do tema de outro grupo</div>
-      <div><span class="chip copia">cópia</span>frase de outro MAC reenviada</div>
-      <div><span class="chip neutra">neutra</span>não aponta para nenhum tema</div>
-      <div style="margin-top:6px">A classificação é automática, por palavras-chave. Quem decide é você: escolha o tema do grupo e marque
-        <b>certa</b> nas 3 ou 4 frases que são pistas de verdade. Só o que você confirmar fica verde no gabarito.</div>
+      <div><span class="chip copia">cópia</span>frase que outro MAC mandou primeiro (certeza, vem da rede)</div>
+      <div><span class="chip fala">fala de</span>cita um tema; pode ser pista ou isca, você decide</div>
+      <div><span class="chip pista">pista</span>bate com o tema que você escolheu para o grupo</div>
+      <div><span class="chip isca">isca</span>cita outro tema que não o escolhido</div>
+      <div><span class="chip neutra">neutra</span>não cita nenhum tema</div>
+      <div style="margin-top:6px">O painel <b>não adivinha</b> tema: todo mundo manda isca com o tema dos outros, então contar palavras engana.
+        O que vem da rede (MAC, IP forjado, cópia) é certo. O resto é com você: escolha o tema de cada grupo e marque <b>certa</b>
+        nas 3 ou 4 frases que são pistas de verdade.</div>
     </div>
   </aside>
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const ORDEM = { pista: 0, copia: 1, isca: 2, neutra: 3 };
-const NOME = { pista: "pista", isca: "isca", copia: "cópia", neutra: "neutra" };
+const ORDEM = { pista: 0, fala: 1, copia: 2, isca: 3, neutra: 4 };
+const NOME = { pista: "pista", fala: "fala de", isca: "isca", copia: "cópia", neutra: "neutra" };
 let filtro = "todas", dados = null;
 
 document.querySelectorAll(".filtros button").forEach((b) => b.addEventListener("click", () => {
@@ -178,20 +190,42 @@ function seletor(g, temas) {
   if (g.nos) return "";
   const ops = temas.map((t) => `<option value="${esc(t.tema)}" ${t.tema === g.tema ? "selected" : ""}>${esc(t.tema)}</option>`).join("");
   return `<select data-mac="${esc(g.mac)}" aria-label="Tema de ${esc(g.ip)}">
-    <option value="">${g.tema && !g.tema_manual ? "palpite automático" : "— sem tema —"}</option>${ops}</select>`;
+    <option value="">— escolha o tema —</option>${ops}</select>`;
+}
+
+function maquina(g) {
+  const m = g.maquina;
+  const arp = m.mac_arp == null ? "ainda conferindo…" : m.arp_confere
+    ? '<span class="ok">✓ a rede confirma este MAC para o IP</span>'
+    : `<span class="ruim">✗ a rede diz que o IP é ${esc(m.mac_arp)}: frases forjadas</span>`;
+  const emissores = m.emissores.length
+    ? m.emissores.map((e) => `porta ${esc(e.porta)} (${esc(e.de)}–${esc(e.ate)}): ${e.frases} frases · ${Object.entries(e.temas).map(([t, n]) => `${esc(t)} ${n}`).join(", ")}`).join("<br>")
+    : "—";
+  const aviso = m.simultaneos ? `<span class="ruim">${m.emissores.length} programas emissores rodando ao mesmo tempo</span><br>`
+    : m.emissores.length > 1 ? `<span>reiniciou o emissor ${m.emissores.length - 1}× (cada reinício muda a porta)</span><br>` : "";
+  return `<dl class="maquina">
+    <dt>Nome</dt><dd class="mono">${esc(m.nome || (m.nome === null ? "procurando…" : "não respondeu"))}</dd>
+    <dt>Fabricante</dt><dd>${esc(m.fabricante)}</dd>
+    <dt>MAC × ARP</dt><dd>${g.nos ? "—" : arp}</dd>
+    <dt>Ritmo</dt><dd>${m.intervalo ? `a cada ~${m.intervalo}s, no segundo :${String(m.segundo).padStart(2, "0")} · última ${esc(m.ultima)}` : "—"}</dd>
+    <dt>Emissores</dt><dd>${aviso}${emissores}</dd>
+  </dl>`;
 }
 
 function cartao(g, temas) {
   const frases = g.frases.filter((f) => filtro === "todas" || f.tipo === filtro)
     .sort((a, b) => ORDEM[a.tipo] - ORDEM[b.tipo]);
   const n = (t) => g.frases.filter((f) => f.tipo === t).length;
-  const tema = g.nos ? "hipermercado (nós)" : g.tema ? `${g.tema}${g.tema_manual ? " · definido por você" : " · palpite"}` : "tema ainda indefinido";
+  const tema = g.nos ? "hipermercado (nós)" : g.tema ? `tema escolhido: ${g.tema}` : "tema não escolhido";
+  const citados = Object.entries(g.citados).map(([t, n]) => `<b>${esc(t)}</b> ${n}`).join(" · ") || "nenhum tema";
   return `<article class="grupo ${g.nos ? "nos" : ""}">
     <div class="topo">
       <div class="linha"><span class="ip mono">${esc(g.ips.join(" · "))}</span><span class="mac mono">${esc(g.mac)}</span>${seletor(g, temas)}</div>
       <div class="linha">${selos(g)}</div>
-      <div class="linha"><span class="conf"><b>${esc(tema)}</b></span>${g.nos ? "" : `<span class="barra"><i style="width:${g.confianca}%"></i></span><span class="conf">${g.confianca}% das palavras-chave</span>`}</div>
-      <div class="contagem">${["pista", "isca", "copia", "neutra"].map((t) => `<span class="chip ${t}" style="padding:2px 8px">${n(t)} ${NOME[t]}</span>`).join("")}
+      ${g.maquina ? maquina(g) : ""}
+      <div class="linha"><span class="conf"><b>${esc(tema)}</b></span></div>
+      <div class="citados">Temas citados (frases próprias, sem contar cópias): ${citados}</div>
+      <div class="contagem">${["pista", "fala", "isca", "copia", "neutra"].filter((t) => n(t)).map((t) => `<span class="chip ${t}" style="padding:2px 8px">${n(t)} ${NOME[t]}</span>`).join("")}
         ${g.nos ? "" : (() => { const c = g.frases.filter((f) => f.certa).length;
           return `<span class="marcadas ${c >= 3 && c <= 4 ? "ok" : "falta"}">${c} de 3–4 frases certas marcadas</span>`; })()}</div>
     </div>
@@ -207,12 +241,12 @@ function render() {
   if (document.activeElement && document.activeElement.tagName === "SELECT") return; // não atrapalha quem está escolhendo
   const d = dados;
   $("gabarito").innerHTML = d.temas.map((t) => {
-    const estado = !t.ip ? "" : t.confirmado ? "✓ confirmado" : t.manual ? "tema definido, falta marcar as frases" : "palpite automático, confirme";
-    const lista = t.certas.length ? `<ol>${t.certas.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>`
-      : t.sugeridas.length ? `<ol class="sugestao">${t.sugeridas.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>` : "";
+    const estado = !t.ip ? "" : t.confirmado ? `✓ ${t.certas.length} frase(s) certa(s)` : "falta marcar as frases certas";
+    const lista = t.certas.length ? `<ol>${t.certas.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>` : "";
+    const citam = t.citam.length ? `<small>citado por ${t.citam.map((c) => `${esc(c.ip)} (${c.frases})`).join(" · ")}</small>` : "<small>ninguém citou ainda</small>";
     return `<div class="tema ${t.ip ? "" : "vazio"} ${t.confirmado ? "confirmado" : ""}">
       <div class="cab"><b>${esc(t.tema)}</b><small>${estado}</small></div>
-      <div class="quem mono">${t.ip ? esc(t.ip) : "ninguém ainda"}</div>${lista}</div>`;
+      <div class="quem mono">${t.ip ? esc(t.ip) : "não escolhido"}</div>${lista}<div>${citam}</div></div>`;
   }).join("");
   $("alertas").innerHTML = d.alertas.length
     ? d.alertas.map((a) => `<div class="alerta ${a.tipo === "mesma máquina" ? "mesma-maquina" : ""}"><time class="mono">${esc(a.hora)}</time>

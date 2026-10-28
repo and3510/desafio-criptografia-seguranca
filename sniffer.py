@@ -1,8 +1,8 @@
 """Sniffer UDP 80: captura as frases de todos os grupos e mostra um painel no navegador.
 
 Identifica cada máquina pelo MAC de origem (captura com o tshark, que vem com o Wireshark),
-avisa quando alguém forja um IP ou copia frases de outro grupo, e classifica cada frase como
-pista do tema do próprio grupo, isca imitando o tema de outro grupo, ou neutra.
+avisa quando alguém forja um IP ou copia frases de outro grupo, e mostra de que tema cada frase
+fala. O tema de cada grupo e as pistas reais quem escolhe é você, no painel.
 
 Uso: python sniffer.py   (o painel abre em http://localhost:8765)
 """
@@ -27,7 +27,8 @@ p = argparse.ArgumentParser()
 p.add_argument("--interface", default="Ethernet", help="placa de rede para o tshark (veja: tshark -D)")
 p.add_argument("--porta", type=int, default=80)
 p.add_argument("--painel", type=int, default=8765, help="porta do painel no navegador")
-p.add_argument("--tshark", default=shutil.which("tshark") or r"C:\Program Files\Wireshark\tshark.exe")
+p.add_argument("--sem-navegador", action="store_true", help="não abre o painel no navegador")
+p.add_argument("--tshark",default=shutil.which("tshark") or r"C:\Program Files\Wireshark\tshark.exe")
 args = p.parse_args()
 
 PASTA = os.path.dirname(os.path.abspath(__file__))
@@ -78,7 +79,7 @@ class Grupo:
     def __init__(self, mac):
         self.mac = mac
         self.ips, self.ttls, self.portas = Counter(), Counter(), Counter()
-        self.frases = []  # (epoch, ip, frase)
+        self.frases = []  # (epoch, ip, frase, porta de origem)
 
 
 lock = threading.Lock()
@@ -122,21 +123,95 @@ def dono_parecido(chave, mac):
 ja_vistos = set()  # (epoch, MAC): evita contar duas vezes o mesmo pacote (ex.: dois sniffers gravando juntos)
 
 
+def junta_provisorio(ip, mac):
+    """Frases importadas sem MAC ficam em "ip:<ip>"; quando o MAC real do IP aparece, junta."""
+    provisorio = grupos.pop(f"ip:{ip}", None)
+    if not provisorio:
+        return
+    if mac not in grupos:
+        provisorio.mac = mac
+        grupos[mac] = provisorio
+    else:
+        grupos[mac].frases = sorted(provisorio.frases + grupos[mac].frases)
+        grupos[mac].ips.update(provisorio.ips)
+    for k, dono in dono_da_frase.items():
+        if dono == f"ip:{ip}":
+            dono_da_frase[k] = mac
+    for k in [k for k in copias if k[0] == f"ip:{ip}"]:
+        copias[(mac, k[1])] = copias.pop(k)
+
+
+# Investigação de cada máquina: nome (NetBIOS / DNS reverso), MAC pela tabela ARP e fabricante da placa.
+perfis = {}  # IP -> {"nome": str, "mac_arp": str}
+fabricantes = {}  # "aa:bb:cc" (bloco de 24 bits) ou "aa:bb:cc:d" (bloco de 28 bits) -> nome
+try:
+    tabela = subprocess.run([args.tshark, "-G", "manuf"], capture_output=True, timeout=30).stdout.decode("utf-8", errors="replace")
+except (subprocess.TimeoutExpired, OSError):
+    tabela = ""
+for linha in tabela.splitlines():
+    partes = linha.split("\t")
+    if len(partes) < 2 or linha.startswith("#"):
+        continue
+    prefixo = partes[0].strip().lower()
+    if len(prefixo) == 8:
+        fabricantes[prefixo] = partes[-1].strip()
+    elif prefixo.endswith("/28"):
+        fabricantes[prefixo[:10]] = partes[-1].strip()
+
+
+def fabricante(mac):
+    if not mac_real(mac):
+        return "?"
+    if int(mac[:2], 16) & 2:
+        return "MAC aleatório (esconde o fabricante)"
+    return fabricantes.get(mac[:10]) or fabricantes.get(mac[:8], "desconhecido")
+
+
+def roda(cmd, segundos=8):
+    try:
+        return subprocess.run(cmd, capture_output=True, timeout=segundos).stdout.decode("cp850", errors="replace")
+    except (subprocess.TimeoutExpired, OSError):
+        return ""
+
+
+def investiga_ip(ip):
+    perfil = perfis.setdefault(ip, {"nome": None, "mac_arp": None})
+    if perfil["nome"] is None:
+        nome = re.search(r"^\s*(\S+)\s*<00>\s+(UNIQUE|EXCLUSIVO)", roda(["nbtstat", "-A", ip]), re.M)
+        if not nome:
+            try:
+                nome = socket.gethostbyaddr(ip)[0]
+            except OSError:
+                nome = ""
+        perfil["nome"] = nome.group(1) if hasattr(nome, "group") else nome
+    roda(["ping", "-n", "1", "-w", "500", ip], 3)  # só para a ARP aprender o MAC
+    achado = re.search(re.escape(ip) + r"\s+([0-9a-f]{2}(?:-[0-9a-f]{2}){5})", roda(["arp", "-a", ip], 3), re.I)
+    if achado:
+        mac_arp = achado.group(1).lower().replace("-", ":")
+        with lock:
+            perfil["mac_arp"] = mac_arp
+            junta_provisorio(ip, mac_arp)
+            for mac, g in grupos.items():
+                if ip in g.ips and mac_real(mac) and mac != mac_arp:
+                    alerta(f"arp:{ip}:{mac}", datetime.now().timestamp(), "IP forjado",
+                           f"A rede diz que {ip} é a placa {mac_arp}, mas chegaram frases com esse IP vindas de {mac}.")
+
+
+def investigador():
+    while True:
+        with lock:
+            ips = {ip for g in grupos.values() for ip in g.ips if ip != eu}
+        for ip in sorted(ips):
+            investiga_ip(ip)
+        threading.Event().wait(30)
+
+
 def registra(epoch, mac, ip, porta, ttl, frase, ao_vivo=True):
     if (round(epoch, 3), mac) in ja_vistos:
         return False
     ja_vistos.add((round(epoch, 3), mac))
-    provisorio = grupos.pop(f"ip:{ip}", None) if mac_real(mac) else None
-    if provisorio and mac not in grupos:
-        provisorio.mac = mac
-        grupos[mac] = provisorio
-    elif provisorio:
-        grupos[mac].frases = sorted(provisorio.frases + grupos[mac].frases)
-        grupos[mac].ips.update(provisorio.ips)
-    if provisorio:
-        for k, dono in dono_da_frase.items():
-            if dono == f"ip:{ip}":
-                dono_da_frase[k] = mac
+    if mac_real(mac):
+        junta_provisorio(ip, mac)
 
     g = grupos.get(mac) or grupos.setdefault(mac, Grupo(mac))
     if ttl != "?":
@@ -150,7 +225,7 @@ def registra(epoch, mac, ip, porta, ttl, frase, ao_vivo=True):
             alerta(f"forjado:{ip}:{mac}", epoch, "IP forjado",
                    f"O IP {ip} pertence ao MAC {original}, mas chegou frase dele vinda do MAC {mac}.")
     g.ips[ip] += 1
-    g.frases.append((epoch, ip, frase))
+    g.frases.append((epoch, ip, frase, porta))
 
     chave = normaliza(frase)
     dono = dono_parecido(chave, mac)
@@ -171,68 +246,49 @@ def rotulo(mac):
     return g.ips.most_common(1)[0][0] if g and g.ips else mac
 
 
-def melhor_atribuicao(pontos, livres):
-    """Dá um tema diferente para cada grupo, maximizando a soma dos pontos."""
-    macs, memo = list(pontos), {}
-
-    def busca(i, usados):
-        if i == len(macs):
-            return 0.0, []
-        if (i, usados) not in memo:
-            valor, resto = busca(i + 1, usados)
-            melhor = (valor, [None] + resto)
-            for j, tema in enumerate(livres):
-                if usados >> j & 1 or not pontos[macs[i]].get(tema):
-                    continue
-                valor, resto = busca(i + 1, usados | 1 << j)
-                valor += pontos[macs[i]][tema]
-                if valor > melhor[0]:
-                    melhor = (valor, [tema] + resto)
-            memo[(i, usados)] = melhor
-        return memo[(i, usados)]
-
-    return dict(zip(macs, busca(0, 0)[1]))
-
-
 def estado():
+    # Não existe palpite automático de tema: todo grupo manda iscas com o tema dos outros
+    # (como nós), então contar palavras-chave engana. O painel só mostra indícios; quem
+    # decide o tema de cada grupo, e quais frases são as pistas reais, é você.
     with lock:
         nos = {m for m, g in grupos.items() if eu in g.ips}
-        pontos = {}
-        for mac, g in grupos.items():
-            votos = Counter()
-            for chave in {normaliza(f) for _, _, f in g.frases}:
-                if (mac, chave) in copias:
-                    continue  # frase copiada não diz nada sobre o tema do grupo
-                ts = temas_da_frase(chave)
-                for t in ts:
-                    votos[t] += 1 / len(ts)
-            pontos[mac] = votos
-        fixos = {m: t for m, t in manuais.items() if m in grupos and t in TEMAS}
-        livres = [t for t in TEMAS if t not in fixos.values()]
-        palpite = melhor_atribuicao({m: v for m, v in pontos.items() if m not in nos and m not in fixos}, livres)
-        tema_de = {**palpite, **fixos}
-        dono_do_tema = {t: m for m, t in tema_de.items() if t}
+        tema_de = {m: t for m, t in manuais.items() if m in grupos and t in TEMAS}
+        dono_do_tema = {t: m for m, t in tema_de.items()}
+        citacoes = {t: Counter() for t in TEMAS}  # tema -> {MAC: quantas frases próprias citam o tema}
 
         saida = []
         for mac, g in grupos.items():
             meu_tema = NOSSO_TEMA if mac in nos else tema_de.get(mac)
-            vistas = {}
-            for epoch, ip, frase in g.frases:
+            vistas, emissores = {}, {}
+            for epoch, ip, frase, porta in g.frases:
                 v = vistas.setdefault(normaliza(frase), {"frase": frase, "vezes": 0})
                 v["vezes"] += 1
                 v["ultima"] = epoch
-            frases = []
+                if porta != "?":
+                    e = emissores.setdefault(porta, {"porta": porta, "frases": set(), "temas": Counter(), "de": epoch})
+                    e["ate"] = epoch
+                    if normaliza(frase) not in e["frases"]:
+                        e["frases"].add(normaliza(frase))
+                        e["temas"].update(temas_da_frase(frase) or ["neutra"])
+            frases, citados = [], Counter()
             for chave, v in vistas.items():
                 temas = temas_da_frase(frase := v["frase"])
-                if (mac, chave) in copias:
+                copia = (mac, chave) in copias
+                if not copia:
+                    citados.update(temas)
+                    for tema in temas:
+                        citacoes[tema][mac] += 1
+                if copia:
                     tipo, detalhe = "copia", f"frase de {rotulo(copias[(mac, chave)])}"
-                elif meu_tema and meu_tema in temas:
-                    tipo, detalhe = "pista", meu_tema
-                elif temas:
-                    alvos = [f"{t} ({rotulo(dono_do_tema[t])})" if t in dono_do_tema and dono_do_tema[t] != mac else t for t in temas]
-                    tipo, detalhe = "isca", "imita " + ", ".join(alvos)
-                else:
+                elif not temas:
                     tipo, detalhe = "neutra", ""
+                elif not meu_tema:
+                    tipo, detalhe = "fala", "fala de " + ", ".join(temas)
+                elif meu_tema in temas:
+                    tipo, detalhe = "pista", f"bate com {meu_tema}"
+                else:
+                    alvos = [f"{x} ({rotulo(dono_do_tema[x])})" if x in dono_do_tema else x for x in temas]
+                    tipo, detalhe = "isca", "imita " + ", ".join(alvos)
                 frases.append({"frase": frase, "tipo": tipo, "detalhe": detalhe, "vezes": v["vezes"],
                                "certa": chave in certas.get(mac, []),
                                "ultima": datetime.fromtimestamp(v["ultima"]).strftime("%H:%M:%S")})
@@ -240,36 +296,51 @@ def estado():
             minutos = (g.frases[-1][0] - g.frases[0][0]) / 60 if total > 1 else 0
             por_minuto = (total - 1) / minutos if minutos else 0
             ttl = g.ttls.most_common(1)[0][0] if g.ttls else "?"
-            votos = pontos[mac]
+            tempos = sorted(e for e, *_ in g.frases)
+            intervalos = sorted(b - a for a, b in zip(tempos, tempos[1:]))
+            fase = Counter(int(t) % 60 for t in tempos).most_common(1)
+            perfil = perfis.get(rotulo(mac), {})
+            # porta nova a cada vez que o grupo reinicia o emissor; só é "vários programas" se os períodos se cruzam
+            periodos = sorted((e["de"], e["ate"]) for e in emissores.values())
+            simultaneos = any(b[0] < a[1] - 5 for a, b in zip(periodos, periodos[1:]))
             saida.append({
+                "maquina": {
+                    "nome": perfil.get("nome"),  # None = ainda não consultado, "" = não respondeu
+"fabricante": fabricante(mac), "mac_arp": perfil.get("mac_arp"),
+                    "arp_confere": perfil.get("mac_arp") in (None, mac) if mac_real(mac) else None,
+                    "intervalo": round(intervalos[len(intervalos) // 2]) if intervalos else None,
+                    "segundo": fase[0][0] if fase else None,
+                    "ultima": datetime.fromtimestamp(tempos[-1]).strftime("%H:%M:%S") if tempos else None,
+                    "simultaneos": simultaneos,
+                    "emissores": [{"porta": e["porta"], "frases": len(e["frases"]), "temas": dict(e["temas"].most_common()),
+                                   "de": datetime.fromtimestamp(e["de"]).strftime("%H:%M"), "ate": datetime.fromtimestamp(e["ate"]).strftime("%H:%M")}
+                                  for e in sorted(emissores.values(), key=lambda e: e["de"])],
+                },
                 "mac": mac, "ip": rotulo(mac), "ips": list(g.ips), "nos": mac in nos,
                 "so": {"128": "Windows", "64": "Linux/macOS"}.get(ttl, "?"),
                 "mac_aleatorio": mac_real(mac) and bool(int(mac[:2], 16) & 2),
                 "portas": len(g.portas), "msgs": total, "unicas": len(vistas),
                 "ciclo_completo": total > len(vistas), "por_minuto": round(por_minuto, 1), "flood": por_minuto > 1.5,
-                "tema": meu_tema, "tema_manual": mac in fixos,
-                "confianca": round(votos[meu_tema] / sum(votos.values()) * 100) if meu_tema in votos else 0,
-                "votos": {t: round(v, 1) for t, v in votos.most_common()},
-                "frases": frases,
+                "tema": meu_tema, "citados": dict(citados.most_common()), "frases": frases,
             })
         saida.sort(key=lambda g: (g["nos"], [int(x) for x in g["ip"].split(".")] if g["ip"][0].isdigit() else [999]))
         return {
             "agora": datetime.now().strftime("%H:%M:%S"), "eu": eu, "interface": args.interface,
-            "temas": [gabarito(t, dono_do_tema.get(t), t in fixos.values(), saida) for t in TEMAS],
+            "temas": [gabarito(t, dono_do_tema.get(t), citacoes[t], nos, saida) for t in TEMAS],
             "grupos": saida, "alertas": alertas[-40:][::-1],
             "feed": [{"hora": datetime.fromtimestamp(e["epoch"]).strftime("%H:%M:%S"), "ip": e["ip"], "mac": e["mac"], "frase": e["frase"]}
                      for e in list(feed)[::-1]],
         }
 
 
-def gabarito(tema, mac, manual, saida):
-    """O que levar ao professor para um tema: o grupo e as frases certas dele.
-    Se você ainda não marcou nenhuma, mostra as pistas automáticas como sugestão."""
+def gabarito(tema, mac, citacoes, nos, saida):
+    """O que levar ao professor para um tema: o grupo que você escolheu e as frases certas dele.
+    Enquanto não houver escolha, lista quem cita o tema (lembrando que pode ser isca)."""
     g = next((g for g in saida if g["mac"] == mac), None)
     marcadas = [f["frase"] for f in g["frases"] if f["certa"]] if g else []
-    sugeridas = [f["frase"] for f in g["frases"] if f["tipo"] == "pista"] if g and not marcadas else []
-    return {"tema": tema, "mac": mac, "ip": g["ip"] if g else None, "manual": manual,
-            "certas": marcadas, "sugeridas": sugeridas, "confirmado": manual and bool(marcadas)}
+    citam = [{"ip": rotulo(m), "frases": n} for m, n in citacoes.most_common() if m not in nos]
+    return {"tema": tema, "mac": mac, "ip": g["ip"] if g else None, "certas": marcadas,
+            "citam": citam, "confirmado": bool(g and marcadas)}
 
 
 class Painel(BaseHTTPRequestHandler):
@@ -348,10 +419,12 @@ if not os.path.exists(args.tshark):
     raise SystemExit("tshark não encontrado. Instale o Wireshark ou passe --tshark com o caminho.")
 print(f"Histórico de hoje: {carrega_historico()} frases.")
 threading.Thread(target=captura, daemon=True).start()
+threading.Thread(target=investigador, daemon=True).start()
 servidor = ThreadingHTTPServer(("127.0.0.1", args.painel), Painel)
 url = f"http://localhost:{args.painel}"
 print(f"Capturando UDP {args.porta} em '{args.interface}'. Painel: {url}  (Ctrl+C para parar)\n", flush=True)
-webbrowser.open(url)
+if not args.sem_navegador:
+    webbrowser.open(url)
 try:
     servidor.serve_forever()
 except KeyboardInterrupt:
