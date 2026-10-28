@@ -1,8 +1,7 @@
 """Sniffer UDP 80: captura as frases de todos os grupos e mostra um painel no navegador.
 
 Identifica cada máquina pelo MAC de origem (captura com o tshark, que vem com o Wireshark),
-avisa quando alguém forja um IP ou copia frases de outro grupo, e mostra de que tema cada frase
-fala. O tema de cada grupo e as pistas reais quem escolhe é você, no painel.
+avisa quando alguém forja um IP, e mostra de que tema cada frase fala. O tema de cada grupo e as pistas reais quem escolhe é você, no painel.
 
 Uso: python sniffer.py   (o painel abre em http://localhost:8765)
 """
@@ -20,7 +19,6 @@ import unicodedata
 import webbrowser
 from collections import Counter, deque
 from datetime import date, datetime
-from difflib import SequenceMatcher
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 p = argparse.ArgumentParser()
@@ -84,8 +82,6 @@ class Grupo:
 
 lock = threading.Lock()
 grupos = {}           # MAC -> Grupo
-dono_da_frase = {}    # frase normalizada -> MAC de quem mandou primeiro
-copias = {}           # (MAC, frase normalizada) -> MAC do dono original
 mac_do_ip = {}        # IP -> primeiro MAC visto com ele
 alertas = []          # dicts {hora, tipo, texto}
 chaves_alerta = set()
@@ -110,16 +106,6 @@ def alerta(chave, epoch, tipo, texto):
         alertas.append({"hora": datetime.fromtimestamp(epoch).strftime("%H:%M:%S"), "tipo": tipo, "texto": texto})
 
 
-def dono_parecido(chave, mac):
-    """Dono de uma frase igual ou quase igual (alguém trocou uma vírgula para disfarçar)."""
-    if chave in dono_da_frase:
-        return dono_da_frase[chave]
-    for outra, dono in dono_da_frase.items():
-        if dono != mac and SequenceMatcher(None, chave, outra).ratio() >= 0.85:
-            return dono
-    return None
-
-
 ja_vistos = set()  # (epoch, MAC): evita contar duas vezes o mesmo pacote (ex.: dois sniffers gravando juntos)
 
 
@@ -134,11 +120,6 @@ def junta_provisorio(ip, mac):
     else:
         grupos[mac].frases = sorted(provisorio.frases + grupos[mac].frases)
         grupos[mac].ips.update(provisorio.ips)
-    for k, dono in dono_da_frase.items():
-        if dono == f"ip:{ip}":
-            dono_da_frase[k] = mac
-    for k in [k for k in copias if k[0] == f"ip:{ip}"]:
-        copias[(mac, k[1])] = copias.pop(k)
 
 
 # Investigação de cada máquina: nome (NetBIOS / DNS reverso), MAC pela tabela ARP e fabricante da placa.
@@ -226,15 +207,6 @@ def registra(epoch, mac, ip, porta, ttl, frase, ao_vivo=True):
                    f"O IP {ip} pertence ao MAC {original}, mas chegou frase dele vinda do MAC {mac}.")
     g.ips[ip] += 1
     g.frases.append((epoch, ip, frase, porta))
-
-    chave = normaliza(frase)
-    dono = dono_parecido(chave, mac)
-    if dono is None:
-        dono_da_frase[chave] = mac
-    elif dono != mac:
-        copias[(mac, chave)] = dono
-        alerta(f"copia:{mac}:{chave}", epoch, "cópia",
-               f"{rotulo(mac)} reenviou uma frase que é de {rotulo(dono)}: “{frase}”")
     if ao_vivo:
         feed.append({"epoch": epoch, "mac": mac, "ip": ip, "frase": frase})
         print(f"[{datetime.fromtimestamp(epoch):%H:%M:%S}] {ip:<15} {mac[-8:]}  {frase}", flush=True)
@@ -254,7 +226,7 @@ def estado():
         nos = {m for m, g in grupos.items() if eu in g.ips}
         tema_de = {m: t for m, t in manuais.items() if m in grupos and t in TEMAS}
         dono_do_tema = {t: m for m, t in tema_de.items()}
-        citacoes = {t: Counter() for t in TEMAS}  # tema -> {MAC: quantas frases próprias citam o tema}
+        citacoes = {t: Counter() for t in TEMAS}  # tema -> {MAC: quantas frases citam o tema}
 
         saida = []
         for mac, g in grupos.items():
@@ -273,14 +245,10 @@ def estado():
             frases, citados = [], Counter()
             for chave, v in vistas.items():
                 temas = temas_da_frase(frase := v["frase"])
-                copia = (mac, chave) in copias
-                if not copia:
-                    citados.update(temas)
-                    for tema in temas:
-                        citacoes[tema][mac] += 1
-                if copia:
-                    tipo, detalhe = "copia", f"frase de {rotulo(copias[(mac, chave)])}"
-                elif not temas:
+                citados.update(temas)
+                for tema in temas:
+                    citacoes[tema][mac] += 1
+                if not temas:
                     tipo, detalhe = "neutra", ""
                 elif not meu_tema:
                     tipo, detalhe = "fala", "fala de " + ", ".join(temas)

@@ -8,14 +8,14 @@
   :root {
     --bg: #f6f7f9; --card: #ffffff; --ink: #1b1f24; --muted: #667080; --line: #e3e6ea;
     --pista: #0f7b4a; --pista-bg: #e3f5ec; --isca: #a15c00; --isca-bg: #fdf0dc;
-    --copia: #b42318; --copia-bg: #fde8e6; --neutra: #667080; --neutra-bg: #eef0f3;
+    --alerta: #b42318; --alerta-bg: #fde8e6; --neutra: #667080; --neutra-bg: #eef0f3;
     --nos: #3a5bd9; --nos-bg: #e8edfd;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #111418; --card: #1a1e24; --ink: #e8eaed; --muted: #9aa3ae; --line: #2a3038;
       --pista: #4cc38a; --pista-bg: #16302a; --isca: #f0b45a; --isca-bg: #33281a;
-      --copia: #ff7b6e; --copia-bg: #3a1d1b; --neutra: #9aa3ae; --neutra-bg: #232830;
+      --alerta: #ff7b6e; --alerta-bg: #3a1d1b; --neutra: #9aa3ae; --neutra-bg: #232830;
       --nos: #8ea6ff; --nos-bg: #1e2540;
     }
   }
@@ -27,7 +27,7 @@
   header h1 { font-size: 17px; margin: 0; }
   .vivo { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
   .vivo::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pista); }
-  .vivo.parado::before { background: var(--copia); }
+  .vivo.parado::before { background: var(--alerta); }
   .filtros { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
   .filtros button { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px;
                     padding: 4px 12px; cursor: pointer; font: inherit; }
@@ -50,8 +50,8 @@
 
   .alertas { display: grid; gap: 6px; }
   .alerta { display: flex; gap: 10px; align-items: baseline; background: var(--card); border: 1px solid var(--line);
-            border-left: 4px solid var(--copia); border-radius: 8px; padding: 8px 12px; }
-  .alerta .tipo { font-weight: 600; color: var(--copia); white-space: nowrap; }
+            border-left: 4px solid var(--alerta); border-radius: 8px; padding: 8px 12px; }
+  .alerta .tipo { font-weight: 600; color: var(--alerta); white-space: nowrap; }
   .alerta.mesma-maquina { border-left-color: var(--isca); }
   .alerta.mesma-maquina .tipo { color: var(--isca); }
   .alerta time { color: var(--muted); }
@@ -67,7 +67,7 @@
   .mac { color: var(--muted); font-size: 12px; }
   select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); margin-left: auto; }
   .selo { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--neutra-bg); color: var(--neutra); white-space: nowrap; }
-  .selo.ruim { background: var(--copia-bg); color: var(--copia); font-weight: 600; }
+  .selo.ruim { background: var(--alerta-bg); color: var(--alerta); font-weight: 600; }
   .selo.atencao { background: var(--isca-bg); color: var(--isca); }
   .selo.ok { background: var(--pista-bg); color: var(--pista); }
   .selo.nos { background: var(--nos-bg); color: var(--nos); font-weight: 600; }
@@ -90,19 +90,17 @@
           padding: 2px 0; border-radius: 6px; margin-top: 2px; }
   .chip.pista { background: var(--pista-bg); color: var(--pista); }
   .chip.isca { background: var(--isca-bg); color: var(--isca); }
-  .chip.copia { background: var(--copia-bg); color: var(--copia); }
   .chip.neutra { background: var(--neutra-bg); color: var(--neutra); }
   .chip.fala { background: var(--nos-bg); color: var(--nos); }
   .maquina { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: 12px; background: var(--bg);
              border-radius: 8px; padding: 8px 10px; }
   .maquina dt { color: var(--muted); }
   .maquina dd { margin: 0; }
-  .maquina .ruim { color: var(--copia); font-weight: 600; }
+  .maquina .ruim { color: var(--alerta); font-weight: 600; }
   .maquina .ok { color: var(--pista); }
   .citados { font-size: 12px; color: var(--muted); }
   .citados b { color: var(--ink); font-weight: 600; }
   .detalhe { display: block; font-size: 12px; color: var(--muted); }
-  li.copia .texto { text-decoration: line-through; text-decoration-color: var(--copia); }
 
   aside { position: sticky; top: 70px; align-self: start; max-height: calc(100vh - 90px); display: flex; flex-direction: column; }
   @media (max-width: 1000px) { aside { position: static; max-height: none; } }
@@ -111,7 +109,6 @@
   .feed div + div { border-top: 1px solid var(--line); }
   .feed .pista { border-left-color: var(--pista); }
   .feed .isca { border-left-color: var(--isca); }
-  .feed .copia { border-left-color: var(--copia); }
   .feed .nos { opacity: .55; }
   .feed small { color: var(--muted); display: block; }
   .legenda { display: grid; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 12px; }
@@ -127,7 +124,6 @@
     <button data-f="pista" aria-pressed="false">Pistas</button>
     <button data-f="fala" aria-pressed="false">Fala de tema</button>
     <button data-f="isca" aria-pressed="false">Iscas</button>
-    <button data-f="copia" aria-pressed="false">Cópias</button>
     <button data-f="neutra" aria-pressed="false">Neutras</button>
   </div>
 </header>
@@ -150,13 +146,12 @@
     <h2>Ao vivo</h2>
     <div id="feed" class="feed"></div>
     <div class="legenda">
-      <div><span class="chip copia">cópia</span>frase que outro MAC mandou primeiro (certeza, vem da rede)</div>
       <div><span class="chip fala">fala de</span>cita um tema; pode ser pista ou isca, você decide</div>
       <div><span class="chip pista">pista</span>bate com o tema que você escolheu para o grupo</div>
       <div><span class="chip isca">isca</span>cita outro tema que não o escolhido</div>
       <div><span class="chip neutra">neutra</span>não cita nenhum tema</div>
       <div style="margin-top:6px">O painel <b>não adivinha</b> tema: todo mundo manda isca com o tema dos outros, então contar palavras engana.
-        O que vem da rede (MAC, IP forjado, cópia) é certo. O resto é com você: escolha o tema de cada grupo e marque <b>certa</b>
+        O que vem da rede (MAC, IP forjado, máquina, emissores) é certo. O resto é com você: escolha o tema de cada grupo e marque <b>certa</b>
         nas 3 ou 4 frases que são pistas de verdade.</div>
     </div>
   </aside>
@@ -164,8 +159,8 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const ORDEM = { pista: 0, fala: 1, copia: 2, isca: 3, neutra: 4 };
-const NOME = { pista: "pista", fala: "fala de", isca: "isca", copia: "cópia", neutra: "neutra" };
+const ORDEM = { pista: 0, fala: 1, isca: 2, neutra: 3 };
+const NOME = { pista: "pista", fala: "fala de", isca: "isca", neutra: "neutra" };
 let filtro = "todas", dados = null;
 
 document.querySelectorAll(".filtros button").forEach((b) => b.addEventListener("click", () => {
@@ -224,8 +219,8 @@ function cartao(g, temas) {
       <div class="linha">${selos(g)}</div>
       ${g.maquina ? maquina(g) : ""}
       <div class="linha"><span class="conf"><b>${esc(tema)}</b></span></div>
-      <div class="citados">Temas citados (frases próprias, sem contar cópias): ${citados}</div>
-      <div class="contagem">${["pista", "fala", "isca", "copia", "neutra"].filter((t) => n(t)).map((t) => `<span class="chip ${t}" style="padding:2px 8px">${n(t)} ${NOME[t]}</span>`).join("")}
+      <div class="citados">Temas citados nas frases desta máquina: ${citados}</div>
+      <div class="contagem">${["pista", "fala", "isca", "neutra"].filter((t) => n(t)).map((t) => `<span class="chip ${t}" style="padding:2px 8px">${n(t)} ${NOME[t]}</span>`).join("")}
         ${g.nos ? "" : (() => { const c = g.frases.filter((f) => f.certa).length;
           return `<span class="marcadas ${c >= 3 && c <= 4 ? "ok" : "falta"}">${c} de 3–4 frases certas marcadas</span>`; })()}</div>
     </div>
@@ -251,7 +246,7 @@ function render() {
   $("alertas").innerHTML = d.alertas.length
     ? d.alertas.map((a) => `<div class="alerta ${a.tipo === "mesma máquina" ? "mesma-maquina" : ""}"><time class="mono">${esc(a.hora)}</time>
         <span class="tipo">${esc(a.tipo)}</span><span>${esc(a.texto)}</span></div>`).join("")
-    : '<div class="sem-nada">Nenhuma falsificação detectada: cada IP veio sempre do mesmo MAC e ninguém reenviou frase alheia.</div>';
+    : '<div class="sem-nada">Nenhuma falsificação de rede: cada IP veio sempre da mesma placa (MAC), e a ARP confirma.</div>';
   $("grupos").innerHTML = d.grupos.map((g) => cartao(g, d.temas)).join("");
   const tipo = {};
   d.grupos.forEach((g) => g.frases.forEach((f) => (tipo[g.mac + "|" + f.frase] = g.nos ? "nos" : f.tipo)));
@@ -277,7 +272,7 @@ async function atualiza() {
     render();
   } catch {
     $("status").className = "vivo parado";
-    $("status").textContent = "sniffer parado — rode python sniffer.py";
+    $("status").textContent = `sem resposta em ${location.host}: o painel certo é http://localhost:8765 (ou rode python sniffer.py)`;
   }
 }
 atualiza();
