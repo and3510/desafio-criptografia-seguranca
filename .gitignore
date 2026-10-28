@@ -1,1 +1,3 @@
 *.csv
+# respostas confirmadas no painel do sniffer (não publicar)
+sniffer_gabarito.json

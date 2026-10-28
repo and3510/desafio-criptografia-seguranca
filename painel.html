@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sniffer UDP 80</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1b1f24; --muted: #667080; --line: #e3e6ea;
+    --pista: #0f7b4a; --pista-bg: #e3f5ec; --isca: #a15c00; --isca-bg: #fdf0dc;
+    --copia: #b42318; --copia-bg: #fde8e6; --neutra: #667080; --neutra-bg: #eef0f3;
+    --nos: #3a5bd9; --nos-bg: #e8edfd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111418; --card: #1a1e24; --ink: #e8eaed; --muted: #9aa3ae; --line: #2a3038;
+      --pista: #4cc38a; --pista-bg: #16302a; --isca: #f0b45a; --isca-bg: #33281a;
+      --copia: #ff7b6e; --copia-bg: #3a1d1b; --neutra: #9aa3ae; --neutra-bg: #232830;
+      --nos: #8ea6ff; --nos-bg: #1e2540;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+           padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; }
+  .vivo { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .vivo::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pista); }
+  .vivo.parado::before { background: var(--copia); }
+  .filtros { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+  .filtros button { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px;
+                    padding: 4px 12px; cursor: pointer; font: inherit; }
+  .filtros button[aria-pressed="true"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; padding: 20px; max-width: 1600px; margin: 0 auto; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  section { margin-bottom: 24px; }
+
+  .gabarito { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+  .tema { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .tema.confirmado { border-color: var(--pista); box-shadow: inset 4px 0 0 var(--pista); }
+  .tema .cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .tema b { font-size: 13px; }
+  .tema .quem { font-size: 16px; margin-top: 2px; }
+  .tema.vazio .quem { color: var(--muted); }
+  .tema small { color: var(--muted); }
+  .tema ol { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+  .tema ol.sugestao { color: var(--muted); font-style: italic; }
+
+  .alertas { display: grid; gap: 6px; }
+  .alerta { display: flex; gap: 10px; align-items: baseline; background: var(--card); border: 1px solid var(--line);
+            border-left: 4px solid var(--copia); border-radius: 8px; padding: 8px 12px; }
+  .alerta .tipo { font-weight: 600; color: var(--copia); white-space: nowrap; }
+  .alerta.mesma-maquina { border-left-color: var(--isca); }
+  .alerta.mesma-maquina .tipo { color: var(--isca); }
+  .alerta time { color: var(--muted); }
+  .sem-nada { color: var(--muted); background: var(--card); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; }
+
+  .grupos { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+  @media (max-width: 520px) { .grupos { grid-template-columns: 1fr; } }
+  .grupo { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .grupo.nos { border-color: var(--nos); }
+  .topo { padding: 12px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+  .linha { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ip { font-size: 18px; font-weight: 700; }
+  .mac { color: var(--muted); font-size: 12px; }
+  select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); margin-left: auto; }
+  .selo { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--neutra-bg); color: var(--neutra); white-space: nowrap; }
+  .selo.ruim { background: var(--copia-bg); color: var(--copia); font-weight: 600; }
+  .selo.atencao { background: var(--isca-bg); color: var(--isca); }
+  .selo.ok { background: var(--pista-bg); color: var(--pista); }
+  .selo.nos { background: var(--nos-bg); color: var(--nos); font-weight: 600; }
+  .barra { height: 6px; background: var(--neutra-bg); border-radius: 3px; overflow: hidden; flex: 1; min-width: 80px; }
+  .barra i { display: block; height: 100%; background: var(--pista); }
+  .conf { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .contagem { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  ul.frases { list-style: none; margin: 0; padding: 6px 0; max-height: 360px; overflow: auto; }
+  ul.frases li { display: grid; grid-template-columns: 74px 1fr auto; gap: 10px; padding: 6px 14px; align-items: start; }
+  ul.frases li.marcada { background: var(--pista-bg); }
+  .marca { font: inherit; font-size: 12px; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--muted);
+           border-radius: 8px; padding: 2px 10px; white-space: nowrap; }
+  .marca[aria-pressed="true"] { background: var(--pista); border-color: var(--pista); color: #fff; font-weight: 600; }
+  .marcadas { font-size: 12px; font-weight: 600; }
+  .marcadas.falta { color: var(--isca); }
+  .marcadas.ok { color: var(--pista); }
+  ul.frases li + li { border-top: 1px solid var(--line); }
+  .chip { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; text-align: center;
+          padding: 2px 0; border-radius: 6px; margin-top: 2px; }
+  .chip.pista { background: var(--pista-bg); color: var(--pista); }
+  .chip.isca { background: var(--isca-bg); color: var(--isca); }
+  .chip.copia { background: var(--copia-bg); color: var(--copia); }
+  .chip.neutra { background: var(--neutra-bg); color: var(--neutra); }
+  .detalhe { display: block; font-size: 12px; color: var(--muted); }
+  li.copia .texto { text-decoration: line-through; text-decoration-color: var(--copia); }
+
+  aside { position: sticky; top: 70px; align-self: start; max-height: calc(100vh - 90px); display: flex; flex-direction: column; }
+  @media (max-width: 1000px) { aside { position: static; max-height: none; } }
+  .feed { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: auto; }
+  .feed div { padding: 8px 12px; border-left: 4px solid transparent; }
+  .feed div + div { border-top: 1px solid var(--line); }
+  .feed .pista { border-left-color: var(--pista); }
+  .feed .isca { border-left-color: var(--isca); }
+  .feed .copia { border-left-color: var(--copia); }
+  .feed .nos { opacity: .55; }
+  .feed small { color: var(--muted); display: block; }
+  .legenda { display: grid; gap: 4px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+  .legenda span.chip { display: inline-block; width: 58px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Sniffer UDP 80</h1>
+  <span id="status" class="vivo">conectando…</span>
+  <div class="filtros" role="group" aria-label="Filtrar frases">
+    <button data-f="todas" aria-pressed="true">Todas</button>
+    <button data-f="pista" aria-pressed="false">Pistas</button>
+    <button data-f="isca" aria-pressed="false">Iscas</button>
+    <button data-f="copia" aria-pressed="false">Cópias</button>
+    <button data-f="neutra" aria-pressed="false">Neutras</button>
+  </div>
+</header>
+<main>
+  <div>
+    <section>
+      <h2>Gabarito para o professor: grupo e frases certas de cada tema</h2>
+      <div id="gabarito" class="gabarito"></div>
+    </section>
+    <section>
+      <h2>Alertas de falsificação</h2>
+      <div id="alertas" class="alertas"></div>
+    </section>
+    <section>
+      <h2>Grupos (por MAC)</h2>
+      <div id="grupos" class="grupos"></div>
+    </section>
+  </div>
+  <aside>
+    <h2>Ao vivo</h2>
+    <div id="feed" class="feed"></div>
+    <div class="legenda">
+      <div><span class="chip pista">pista</span>bate com o tema do grupo</div>
+      <div><span class="chip isca">isca</span>fala do tema de outro grupo</div>
+      <div><span class="chip copia">cópia</span>frase de outro MAC reenviada</div>
+      <div><span class="chip neutra">neutra</span>não aponta para nenhum tema</div>
+      <div style="margin-top:6px">A classificação é automática, por palavras-chave. Quem decide é você: escolha o tema do grupo e marque
+        <b>certa</b> nas 3 ou 4 frases que são pistas de verdade. Só o que você confirmar fica verde no gabarito.</div>
+    </div>
+  </aside>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ORDEM = { pista: 0, copia: 1, isca: 2, neutra: 3 };
+const NOME = { pista: "pista", isca: "isca", copia: "cópia", neutra: "neutra" };
+let filtro = "todas", dados = null;
+
+document.querySelectorAll(".filtros button").forEach((b) => b.addEventListener("click", () => {
+  filtro = b.dataset.f;
+  document.querySelectorAll(".filtros button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+  render();
+}));
+
+function selos(g) {
+  const s = [];
+  if (g.nos) s.push('<span class="selo nos">NÓS</span>');
+  s.push(`<span class="selo">${esc(g.so)}</span>`);
+  if (g.ips.length > 1) s.push(`<span class="selo ruim">${g.ips.length} IPs na mesma máquina</span>`);
+  if (g.flood) s.push(`<span class="selo ruim">flood ${g.por_minuto}/min</span>`);
+  if (g.mac_aleatorio) s.push('<span class="selo atencao">MAC aleatório</span>');
+  if (g.portas > 2) s.push(`<span class="selo atencao">${g.portas} emissores</span>`);
+  s.push(`<span class="selo ${g.ciclo_completo ? "ok" : ""}">${g.ciclo_completo ? "ciclo completo" : "ciclo em andamento"} · ${g.unicas} frases</span>`);
+  return s.join("");
+}
+
+function seletor(g, temas) {
+  if (g.nos) return "";
+  const ops = temas.map((t) => `<option value="${esc(t.tema)}" ${t.tema === g.tema ? "selected" : ""}>${esc(t.tema)}</option>`).join("");
+  return `<select data-mac="${esc(g.mac)}" aria-label="Tema de ${esc(g.ip)}">
+    <option value="">${g.tema && !g.tema_manual ? "palpite automático" : "— sem tema —"}</option>${ops}</select>`;
+}
+
+function cartao(g, temas) {
+  const frases = g.frases.filter((f) => filtro === "todas" || f.tipo === filtro)
+    .sort((a, b) => ORDEM[a.tipo] - ORDEM[b.tipo]);
+  const n = (t) => g.frases.filter((f) => f.tipo === t).length;
+  const tema = g.nos ? "hipermercado (nós)" : g.tema ? `${g.tema}${g.tema_manual ? " · definido por você" : " · palpite"}` : "tema ainda indefinido";
+  return `<article class="grupo ${g.nos ? "nos" : ""}">
+    <div class="topo">
+      <div class="linha"><span class="ip mono">${esc(g.ips.join(" · "))}</span><span class="mac mono">${esc(g.mac)}</span>${seletor(g, temas)}</div>
+      <div class="linha">${selos(g)}</div>
+      <div class="linha"><span class="conf"><b>${esc(tema)}</b></span>${g.nos ? "" : `<span class="barra"><i style="width:${g.confianca}%"></i></span><span class="conf">${g.confianca}% das palavras-chave</span>`}</div>
+      <div class="contagem">${["pista", "isca", "copia", "neutra"].map((t) => `<span class="chip ${t}" style="padding:2px 8px">${n(t)} ${NOME[t]}</span>`).join("")}
+        ${g.nos ? "" : (() => { const c = g.frases.filter((f) => f.certa).length;
+          return `<span class="marcadas ${c >= 3 && c <= 4 ? "ok" : "falta"}">${c} de 3–4 frases certas marcadas</span>`; })()}</div>
+    </div>
+    <ul class="frases">${frases.map((f) => `<li class="${f.tipo} ${f.certa ? "marcada" : ""}"><span class="chip ${f.tipo}">${NOME[f.tipo]}</span>
+      <span><span class="texto">${esc(f.frase)}</span><span class="detalhe">${esc(f.detalhe)}${f.detalhe ? " · " : ""}${f.vezes}× · última ${esc(f.ultima)}</span></span>
+      ${g.nos ? "<span></span>" : `<button class="marca" aria-pressed="${f.certa}" data-mac="${esc(g.mac)}" data-frase="${esc(f.frase)}">${f.certa ? "✓ certa" : "certa?"}</button>`}</li>`).join("")
+      || '<li><span></span><span class="detalhe">nenhuma frase neste filtro</span><span></span></li>'}</ul>
+  </article>`;
+}
+
+function render() {
+  if (!dados) return;
+  if (document.activeElement && document.activeElement.tagName === "SELECT") return; // não atrapalha quem está escolhendo
+  const d = dados;
+  $("gabarito").innerHTML = d.temas.map((t) => {
+    const estado = !t.ip ? "" : t.confirmado ? "✓ confirmado" : t.manual ? "tema definido, falta marcar as frases" : "palpite automático, confirme";
+    const lista = t.certas.length ? `<ol>${t.certas.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>`
+      : t.sugeridas.length ? `<ol class="sugestao">${t.sugeridas.map((f) => `<li>${esc(f)}</li>`).join("")}</ol>` : "";
+    return `<div class="tema ${t.ip ? "" : "vazio"} ${t.confirmado ? "confirmado" : ""}">
+      <div class="cab"><b>${esc(t.tema)}</b><small>${estado}</small></div>
+      <div class="quem mono">${t.ip ? esc(t.ip) : "ninguém ainda"}</div>${lista}</div>`;
+  }).join("");
+  $("alertas").innerHTML = d.alertas.length
+    ? d.alertas.map((a) => `<div class="alerta ${a.tipo === "mesma máquina" ? "mesma-maquina" : ""}"><time class="mono">${esc(a.hora)}</time>
+        <span class="tipo">${esc(a.tipo)}</span><span>${esc(a.texto)}</span></div>`).join("")
+    : '<div class="sem-nada">Nenhuma falsificação detectada: cada IP veio sempre do mesmo MAC e ninguém reenviou frase alheia.</div>';
+  $("grupos").innerHTML = d.grupos.map((g) => cartao(g, d.temas)).join("");
+  const tipo = {};
+  d.grupos.forEach((g) => g.frases.forEach((f) => (tipo[g.mac + "|" + f.frase] = g.nos ? "nos" : f.tipo)));
+  $("feed").innerHTML = d.feed.map((e) => `<div class="${tipo[e.mac + "|" + e.frase] || ""}">
+    <small class="mono">${esc(e.hora)} · ${esc(e.ip)}</small>${esc(e.frase)}</div>`).join("")
+    || '<div class="sem-nada" style="border:0">Esperando pacotes…</div>';
+  document.querySelectorAll("button.marca").forEach((b) => b.addEventListener("click", async () => {
+    await fetch("/api/certa", { method: "POST", body: JSON.stringify({ mac: b.dataset.mac, frase: b.dataset.frase, certa: b.getAttribute("aria-pressed") !== "true" }) });
+    atualiza();
+  }));
+  document.querySelectorAll("select[data-mac]").forEach((s) => s.addEventListener("change", async () => {
+    await fetch("/api/tema", { method: "POST", body: JSON.stringify({ mac: s.dataset.mac, tema: s.value }) });
+    s.blur();
+    atualiza();
+  }));
+}
+
+async function atualiza() {
+  try {
+    dados = await (await fetch("/api/estado")).json();
+    $("status").className = "vivo";
+    $("status").textContent = `capturando em ${dados.interface} · ${dados.grupos.length} máquinas · atualizado ${dados.agora}`;
+    render();
+  } catch {
+    $("status").className = "vivo parado";
+    $("status").textContent = "sniffer parado — rode python sniffer.py";
+  }
+}
+atualiza();
+setInterval(atualiza, 2000);
+</script>
+</body>
+</html>
