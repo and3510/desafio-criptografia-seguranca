@@ -1,13 +1,13 @@
 # Desafio de mensagens em rede — UDP Broadcast
 
 Emissor e receptor em Python para o desafio de criptografia e comunicação UDP broadcast.
-Nossa empresa: **Icev-Food** — serviço: **entrega de comida**.
+Nossa empresa: **Icev-Mart** — serviço: **hipermercado**.
 
 ## Arquivos
 
 - `emissor.py`: envia uma frase por minuto do `frases.txt` por UDP broadcast (porta 80)
 - `receptor.py`: escuta a porta 80, mostra as frases na tela e salva em `capturas.csv`
-- `frases.txt`: as 14 frases (4 com pistas sobre o serviço)
+- `frases.txt`: as 20 frases (4 pistas reais sobre o serviço e 16 iscas para confundir)
 
 Só precisa de Python 3, sem instalar nada.
 

@@ -1,15 +1,21 @@
-# Uma frase por linha (linhas com # são ignoradas). 4 pistas + 10 outras.
-A mochila quadrada nas costas é o nosso cartão de visita.
-Você escolhe pelo celular e a gente leva até o seu portão.
-Trabalhamos com vários restaurantes parceiros, e o que importa é chegar quentinho.
-Nossa meta é que a fome de ninguém espere mais de quarenta minutos.
-Alguém sabe se o laboratório vai estar aberto amanhã?
-Lembrete: entregar o relatório de redes até sexta.
-Bom dia a todos, que a internet do laboratório aguente firme!
-Quem é o monitor responsável pela turma hoje?
-Estou testando meu emissor, ignorem esta mensagem.
-Será que alguém já descobriu quem somos?
-Café é combustível para programadores.
-Hoje o dia está bem quente, ainda bem que o laboratório tem ar-condicionado.
-Quem vai ganhar os pontos extras da prova?
-Pacotes UDP não têm confirmação de entrega, mas a gente insiste mesmo assim.
+# Uma frase por linha (linhas com # são ignoradas). 20 frases: 4 pistas + 16 iscas.
+Nosso último lançamento passou de cem mil downloads na primeira semana.
+Instalamos mais uma antena e o sinal melhorou no bairro todo.
+Nossas câmaras frias ficam abaixo de zero o dia inteiro, e a energia não pode cair nem por um minuto.
+Verão é a nossa época mais corrida, todo mundo liga pedindo manutenção.
+Quem experimenta o nosso travesseiro uma vez não quer mais outro.
+A gente ajuda pequenas empresas a organizar as contas antes de fechar o mês.
+A obra do prédio novo atrasou por causa da chuva, mas a laje sai semana que vem.
+Temos fases, pontos acumulados e recompensas para quem volta toda semana.
+Nosso rendimento ficou acima da poupança de novo este mês.
+Cada colchão sai da fábrica com dez anos de garantia.
+A equipe de arte ainda está finalizando os personagens da próxima fase.
+Na semana passada a gente instalou três câmaras frias num frigorífico do interior.
+Nossa rede tem cobertura nacional e ponto de atendimento aberto até de madrugada.
+Fibra óptica até a porta da sua casa, sem taxa de instalação.
+Nosso sistema gera o relatório de despesas da empresa em dois cliques.
+Planilha bem feita resolve metade dos problemas dos nossos clientes.
+O engenheiro aprovou a fundação, agora é só subir as paredes.
+Oferecemos cartão próprio, parcelamento sem juros e até saque no caixa.
+Testamos cada poltrona por semanas antes de colocar à venda.
+Abrir conta com a gente leva cinco minutos e não tem tarifa nenhuma.
