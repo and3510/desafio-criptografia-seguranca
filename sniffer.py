@@ -94,6 +94,17 @@ eu = meu_ip()
 
 
 def registra(epoch, mac, ip, porta, ttl, frase, mostrar=True):
+    # linhas importadas do capturas.csv sem MAC ficam em "ip:<ip>"; quando o MAC real aparece, junta
+    provisorio = grupos.pop(f"ip:{ip}", None) if not mac.startswith("ip:") else None
+    if provisorio and mac not in grupos:
+        provisorio.mac = mac
+        grupos[mac] = provisorio
+        for chave, dono in dono_da_frase.items():
+            if dono == f"ip:{ip}":
+                dono_da_frase[chave] = mac
+    elif provisorio:
+        grupos[mac].frases = sorted(provisorio.frases + grupos[mac].frases)
+        grupos[mac].ips.update(provisorio.ips)
     g = grupos.get(mac) or grupos.setdefault(mac, Grupo(mac))
     g.ips[ip] += 1
     if ttl != "?":  # "?" = linha importada do capturas.csv, sem dados do pacote
